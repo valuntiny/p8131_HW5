@@ -1,0 +1,133 @@
+---
+title: "HW5_answer"
+author: "Guojing Wu"
+date: "3/7/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = F, 
+                      warning = F)
+library(tidyverse)
+library(pscl)
+theme_set(theme_bw())
+```
+
+## Problem 1
+
+### a) Fit a poisson model (M1)
+
+```{r}
+data_crab <- read.csv("HW5-crab.txt", sep = "")
+fit.m1 <- glm(Sa ~ W, data = data_crab, family = poisson(link = log))
+res.m1 <- summary(fit.m1)
+```
+
+The null model deviance $D_{null}$ is `r round(res.m1$null.deviance, 3)` while the M1 model deviance $D_{M1}$ is `r round(res.m1$deviance, 3)`, $D_{null} - D_{M1} \sim \chi_{1}^{2}$. Hence we got the pvalue = `r round(1 - pchisq(res.m1$null.deviance - res.m1$deviance, df = 1), 3)`, we reject the null hypothesis and state that the M1 model doesn't fit the data well.
+
+We interpret that: the log rate ratio of number of satellites is `r round(res.m1$coefficients[2,1], 3)` given one unit change in carapace width.
+
+### b) Fit a model (M2) with W and Wt, compare it with M1
+
+```{r}
+fit.m2 <- glm(Sa ~ W + Wt, data = data_crab, family = poisson(link = log))
+res.m2 <- summary(fit.m2)
+```
+
+The M2 model deviance $D_{M2}$ is `r round(res.m2$deviance, 3)`, $D_{M1} - D_{M2} \sim \chi_{1}^{2}$. Hence we got the pvalue = `r round(1 - pchisq(res.m1$deviance - res.m2$deviance, df = 1), 3)`, we failed to reject the null hypothesis and state that the M2 model fits the data better.
+
+We interpret that: 
+
+* the log rate ratio of number of satellites is `r round(res.m2$coefficients[2,1], 3)` given one unit change in carapace width.
+
+* the log rate ratio of number of satellites is `r round(res.m2$coefficients[3,1], 3)` given one unit change in weight.
+
+### c) check over dispersion in M2
+
+```{r}
+residual.m2 = residuals(fit.m2, type = 'pearson', data = data_crab)
+G = sum(residual.m2 ^ 2) # calc dispersion param based on full model
+phi = G / (173 - 3)
+plot(qnorm((173 + 1:173 + 0.5) / (2 * 173 + 1.125)), sort(abs(residual.m2)), xlab = 'Expected Half-Normal Order Stats', ylab = 'Ordered Abs Pearson Residuals')
+abline(a = 0, b = 1)
+abline(a = 0, b = sqrt(phi), lty = 2)
+text(1, 4, labels = paste("phi = ", round(phi, 3), sep = ""))
+```
+
+The half normal plot shows that M2 does exist over dispersion.
+
+```{r}
+res.m2.dis <- summary(fit.m2, dispersion = phi)
+```
+
+We interpret that: 
+
+* the log rate ratio of number of satellites is `r round(res.m2.dis$coefficients[2,1], 3)` given one unit change in carapace width.
+
+* the log rate ratio of number of satellites is `r round(res.m2.dis$coefficients[3,1], 3)` given one unit change in weight.
+
+## Problem 2
+
+### a) 
+
+```{r}
+data_para <- read.csv("HW5-parasite.txt", sep = "") %>% 
+  mutate(Year = as.factor(Year), 
+         Area = as.factor(Area))
+fit.para <- glm(Intensity ~ Area + Year + Length, data = data_para, family = poisson(link = log))
+res.para <- summary(fit.para)
+```
+
+We interpret that: 
+
+* the log rate ratio of intensity is `r round(res.para$coefficients[2,1], 3)` given area change from 1 to 2.
+
+* the log rate ratio of intensity is `r round(res.para$coefficients[3,1], 3)` given area change from 1 to 3.
+
+* the log rate ratio of intensity is `r round(res.para$coefficients[4,1], 3)` given area change from 1 to 4.
+
+* the log rate ratio of intensity is `r round(res.para$coefficients[5,1], 3)` given year change from 1999 to 2000.
+
+* the log rate ratio of intensity is `r round(res.para$coefficients[6,1], 3)` given year change from 1999 to 2001.
+
+* the log rate ratio of intensity is `r round(res.para$coefficients[7,1], 3)` for 1 unit change in length.
+
+### b) test for goodness of fit in (a)
+
+```{r}
+pval = 1 - pchisq(res.para$deviance, 1191 - 7)
+```
+
+The value we got is `r round(pval, 3)`, so we reject the null hypothesis and state that this model doesn't fit the data well.
+
+### c) use zero-inflated model
+
+We assume that the area may be realted with whether susceptible and build the model like this:
+
+```{r}
+fit.zip <- zeroinfl(Intensity ~ Area + Year + Length | Area, data = data_para)
+res.zip <- summary(fit.zip)
+```
+
+We interpret for count part:
+
+* within the susceptible fish, the log rate ratio of intensity is `r round(res.zip$coefficients$count[2,1], 3)` given area change from 1 to 2.
+
+* within the susceptible fish, the log rate ratio of intensity is `r round(res.zip$coefficients$count[3,1], 3)` given area change from 1 to 3.
+
+* within the susceptible fish, the log rate ratio of intensity is `r round(res.zip$coefficients$count[4,1], 3)` given area change from 1 to 4.
+
+* within the susceptible fish, the log rate ratio of intensity is `r round(res.zip$coefficients$count[5,1], 3)` given year change from 1999 to 2000.
+
+* within the susceptible fish, the log rate ratio of intensity is `r round(res.zip$coefficients$count[6,1], 3)` given year change from 1999 to 2001.
+
+* within the susceptible fish, the log rate ratio of intensity is `r round(res.zip$coefficients$count[7,1], 3)` for 1 unit change in length.
+
+We interpret for binomal part:
+
+* the log odds ratio of susceptible or not is `r round(res.zip$coefficients$zero[2,1], 3)` given area change from 1 to 2.
+
+* the log odds ratio of susceptible or not is `r round(res.zip$coefficients$zero[3,1], 3)` given area change from 1 to 3.
+
+* the log odds ratio of susceptible or not is `r round(res.zip$coefficients$zero[4,1], 3)` given area change from 1 to 4.
